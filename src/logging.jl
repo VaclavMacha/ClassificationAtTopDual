@@ -5,6 +5,7 @@ Base.@kwdef mutable struct Progress
     t_min::Float64 = 60
     epoch_max::Int = 0
     iter_max::Int = 0
+    verbose::Bool = true
 end
 
 function add_optionals!(io, optionals::Pair...)
@@ -22,10 +23,12 @@ function start!(p::Progress, args...)
     io = IOBuffer()
     write(io, "Training started:  \n")
     add_optionals!(io, args...)
-    print_timer(io, TO; sortby = :name)
+    print_timer(io, TO; sortby=:name)
 
     # print to logger
-    @info String(take!(io))
+    if p.verbose
+        @info String(take!(io))
+    end
     return
 end
 
@@ -54,10 +57,12 @@ function progress!(p::Progress, iter, epoch, args...)
     p.iter_max == 1 || write(io, "⋅ Time per iter: $(speedstring(per_iter)) \n")
     write(io, "⋅ ETA: $(durationstring(eta)) \n")
     add_optionals!(io, args...)
-    print_timer(io, TO; sortby = :name)
+    print_timer(io, TO; sortby=:name)
 
     # print to logger
-    @info String(take!(io))
+    if p.verbose
+        @info String(take!(io))
+    end
     return
 end
 
@@ -70,9 +75,11 @@ function finish!(p::Progress, args...)
     write(io, "Training finished:  \n")
     write(io, "⋅ Elapsed time: $(durationstring(elapsed)) \n")
     add_optionals!(io, args...)
-    print_timer(io, TO; sortby = :name)
+    print_timer(io, TO; sortby=:name)
 
     # print to logger
-    @info String(take!(io))
+    if p.verbose
+        @info String(take!(io))
+    end
     return
 end

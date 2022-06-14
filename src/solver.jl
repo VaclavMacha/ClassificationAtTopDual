@@ -9,6 +9,7 @@ function solve(
     p_update::Real=0.9,
     dir::AbstractString=pwd(),
     ε::Real = 1e-4,
+    verbose::Bool = true,
 )
 
     reset_timer!(TO)
@@ -22,7 +23,7 @@ function solve(
     Δ = zero(Float32)
 
     # Progress logging
-    p = Progress(; epoch_max, iter_max)
+    p = Progress(; epoch_max, iter_max, verbose)
 
     # Initial state
     state[:dir] = dir
