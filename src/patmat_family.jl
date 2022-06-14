@@ -87,7 +87,7 @@ function compute_scores(::PatMatNP, K::KernelMatrix, state::Dict)
     return s[invperm(K.perm)]
 end
 
-function extract_state(::PatMatFamily, K::KernelMatrix, state::Dict)
+function extract_solution(::PatMatFamily, K::KernelMatrix, state::Dict)
     αβ = copy(state[:αβ])
     δ = copy(state[:δ])
     return Dict(:α => αβ[inds_α(K)], :β => αβ[inds_β(K)], :δ => δ)

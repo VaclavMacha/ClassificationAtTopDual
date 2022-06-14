@@ -114,7 +114,7 @@ function checkpoint!(f, K, state)
 
         @timeit TO "Saving" begin
             solution = Dict(
-                :model => extract_state(f, K, state),
+                :model => extract_solution(f, K, state),
                 :p_update => state[:p_update],
                 :kernel => state[:ker],
                 :epoch => state[:epoch],

@@ -92,7 +92,7 @@ function compute_scores(::TopMeanK, K::KernelMatrix, state::Dict)
     return .-s[inds_β(K)]
 end
 
-function extract_state(::TopPushKFamily, K::KernelMatrix, state::Dict)
+function extract_solution(::TopPushKFamily, K::KernelMatrix, state::Dict)
     αβ = copy(state[:αβ])
     return Dict(:α => αβ[inds_α(K)], :β => αβ[inds_β(K)])
 end
