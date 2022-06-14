@@ -95,50 +95,28 @@ end
 
 function isfeasible(f::PatMatFamily{Hinge}, ::KernelMatrix, sol::Dict)
     α, β, δ = sol[:α], sol[:β], sol[:δ]
-    C = Float32(f.C)
-    ϑ = Float32(f.ϑ)
+    C = f.C
+    ϑ = f.ϑ
 
-    flag = true
-    if !(sum(α) ≈ sum(β))
-        @warn "Constraint sum(α) == sum(β) not satisfied"
-        flag = false
-    end
-    if !all(0 .<= α .<= C)
-        @warn "Constraint 0 <= α <= C not satisfied"
-        flag = false
-    end
-    if !all(0 .<= β .<= ϑ * δ)
-        @warn "Constraint 0 <= β <= ϑ * δ not satisfied"
-        flag = false
-    end
-    if δ < 0
-        @warn "Constraint δ >= 0 not satisfied"
-        flag = false
-    end
-    return flag
+    return all([
+        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
+        test_lb.(α, 0, "0 <= α")...,
+        test_ub.(α, C, "α <= C")...,
+        test_lb.(β, 0, "0 <= β")...,
+        test_ub.(β, ϑ * δ, "β <= β <= ϑ * δ")...,
+        test_lb(δ, 0, "0 <= δ"),
+    ])
 end
 
 function isfeasible(::PatMatFamily{Quadratic}, ::KernelMatrix, sol::Dict)
     α, β, δ = sol[:α], sol[:β], sol[:δ]
 
-    flag = true
-    if !(sum(α) ≈ sum(β))
-        @warn "Constraint sum(α) == sum(β) not satisfied"
-        flag = false
-    end
-    if !all(0 .<= α)
-        @warn "Constraint 0 <= α not satisfied"
-        flag = false
-    end
-    if !all(0 .<= β)
-        @warn "Constraint 0 <= β not satisfied"
-        flag = false
-    end
-    if δ < 0
-        @warn "Constraint σ >= 0 not satisfied"
-        flag = false
-    end
-    return flag
+    return all([
+        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
+        test_lb.(α, 0, "0 <= α")...,
+        test_lb.(β, 0, "0 <= β")...,
+        test_lb(δ, 0, "0 <= δ"),
+    ])
 end
 
 # ------------------------------------------------------------------------------------------

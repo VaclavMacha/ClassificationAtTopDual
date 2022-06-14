@@ -99,43 +99,28 @@ end
 
 function isfeasible(f::TopPushKFamily{Hinge}, K::KernelMatrix, sol::Dict)
     α, β = sol[:α], sol[:β]
-    C = Float32(f.C)
+    C = f.C
     Kf = compute_K(f, K)
 
-    flag = true
-    if !(sum(α) ≈ sum(β))
-        @warn "Constraint sum(α) == sum(β) not satisfied"
-        flag = false
-    end
-    if !all(0 .<= α .<= C)
-        @warn "Constraint 0 <= α <= C not satisfied"
-        flag = false
-    end
-    if !all(0 .<= β .<= sum(α) / Kf)
-        @warn "Constraint 0 <= β <= sum(α)/K not satisfied"
-        flag = false
-    end
-    return flag
+    return all([
+        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
+        test_lb.(α, 0, "0 <= α")...,
+        test_ub.(α, C, "α <= C")...,
+        test_lb.(β, 0, "0 <= β")...,
+        test_ub.(β, sum(α) / Kf, "β <= sum(α)/K")...,
+    ])
 end
 
 function isfeasible(f::TopPushKFamily{Quadratic}, K::KernelMatrix, sol::Dict)
     α, β = sol[:α], sol[:β]
     Kf = compute_K(f, K)
 
-    flag = true
-    if !(sum(α) ≈ sum(β))
-        @warn "Constraint sum(α) == sum(β) not satisfied"
-        flag = false
-    end
-    if !all(0 .<= α)
-        @warn "Constraint 0 <= α not satisfied"
-        flag = false
-    end
-    if !all(0 .<= β .<= sum(α) / Kf)
-        @warn "Constraint 0 <= β <= sum(α)/K not satisfied"
-        flag = false
-    end
-    return flag
+    return all([
+        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
+        test_lb.(α, 0, "0 <= α")...,
+        test_lb.(β, 0, "0 <= β")...,
+        test_ub.(β, sum(α) / Kf, "β <= sum(α)/K")...,
+    ])
 end
 
 # ------------------------------------------------------------------------------------------
