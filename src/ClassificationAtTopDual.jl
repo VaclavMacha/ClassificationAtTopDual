@@ -22,7 +22,7 @@ abstract type TopPushKFamily{S<:Surrogate} <: AbstractFormulation end
 abstract type PatMatFamily{S<:Surrogate} <: AbstractFormulation end
 
 # exports
-export solve
+export solve, isfeasible
 
 export KernelMatrix, Linear, Gaussian
 export Hinge, Quadratic

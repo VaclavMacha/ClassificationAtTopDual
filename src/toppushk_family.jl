@@ -97,6 +97,47 @@ function extract_state(::TopPushKFamily, K::KernelMatrix, state::Dict)
     return Dict(:α => αβ[inds_α(K)], :β => αβ[inds_β(K)])
 end
 
+function isfeasible(f::TopPushKFamily{Hinge}, K::KernelMatrix, sol::Dict)
+    α, β = sol[:α], sol[:β]
+    C = Float32(f.C)
+    Kf = compute_K(f, K)
+
+    flag = true
+    if !(sum(α) ≈ sum(β))
+        @warn "Constraint sum(α) == sum(β) not satisfied"
+        flag = false
+    end
+    if !all(0 .<= α .<= C)
+        @warn "Constraint 0 <= α <= C not satisfied"
+        flag = false
+    end
+    if !all(0 .<= β .<= sum(α) / Kf)
+        @warn "Constraint 0 <= β <= sum(α)/K not satisfied"
+        flag = false
+    end
+    return flag
+end
+
+function isfeasible(f::TopPushKFamily{Quadratic}, K::KernelMatrix, sol::Dict)
+    α, β = sol[:α], sol[:β]
+    Kf = compute_K(f, K)
+
+    flag = true
+    if !(sum(α) ≈ sum(β))
+        @warn "Constraint sum(α) == sum(β) not satisfied"
+        flag = false
+    end
+    if !all(0 .<= α)
+        @warn "Constraint 0 <= α not satisfied"
+        flag = false
+    end
+    if !all(0 .<= β .<= sum(α) / Kf)
+        @warn "Constraint 0 <= β <= sum(α)/K not satisfied"
+        flag = false
+    end
+    return flag
+end
+
 # ------------------------------------------------------------------------------------------
 # Initialization
 # ------------------------------------------------------------------------------------------
@@ -140,19 +181,19 @@ function initialize(f::TopPushKFamily{Hinge}, K::KernelMatrix)
     α0 = rand(Float32, K.nα)
     β0 = rand(Float32, K.nβ)
     C = Float32(f.C)
-    K = compute_K(f, K)
+    Kf = compute_K(f, K)
 
     # find feasible solution
-    if mean(partialsort(β0, 1:K; rev=true)) + maximum(α0) <= 0
+    if mean(partialsort(β0, 1:Kf; rev=true)) + maximum(α0) <= 0
         α, β = zero(α0), zero(β0)
     else
         s = vcat(.-sort(β0; rev=true), Inf)
         μ_lb = 1e-10
-        μ_ub = length(α0) * C / K + 1e-6
+        μ_ub = length(α0) * C / Kf + 1e-6
 
-        μ = find_root(μ -> hfunc(f, μ, s, α0, β0, C, K), (μ_lb, μ_ub))
-        λ = ffunc(f, μ, s, K)
-        δ = sum(max.(β0 .+ λ .- μ, 0)) / K
+        μ = find_root(μ -> hfunc(f, μ, s, α0, β0, C, Kf), (μ_lb, μ_ub))
+        λ = ffunc(f, μ, s, Kf)
+        δ = sum(max.(β0 .+ λ .- μ, 0)) / Kf
 
         α = @. max(min(α0 - λ + δ, C), 0)
         β = @. max(min(β0 + λ, μ), 0)
@@ -176,19 +217,19 @@ end
 function initialize(f::TopPushKFamily{Quadratic}, K::KernelMatrix)
     α0 = rand(Float32, K.nα)
     β0 = rand(Float32, K.nβ)
-    K = compute_K(f, K)
+    Kf = compute_K(f, K)
 
     # find feasible solution
-    if mean(partialsort(β0, 1:K; rev=true)) + maximum(α0) <= 0
+    if mean(partialsort(β0, 1:Kf; rev=true)) + maximum(α0) <= 0
         α, β = zero(α0), zero(β0)
     else
         s = vcat(.-sort(β0; rev=true), Inf)
         μ_lb = 1e-10
-        μ_ub = length(α0) * (maximum(α0) + maximum(β0)) / K
+        μ_ub = length(α0) * (maximum(α0) + maximum(β0)) / Kf
 
-        μ = find_root(μ -> hfunc(f, μ, s, α0, β0, K), (μ_lb, μ_ub))
-        λ = ffunc(f, μ, s, K)
-        δ = sum(max.(β0 .+ λ .- μ, 0)) / K
+        μ = find_root(μ -> hfunc(f, μ, s, α0, β0, Kf), (μ_lb, μ_ub))
+        λ = ffunc(f, μ, s, Kf)
+        δ = sum(max.(β0 .+ λ .- μ, 0)) / Kf
 
         α = @. max(α0 - λ + δ, 0)
         β = @. max(min(β0 + λ, μ), 0)

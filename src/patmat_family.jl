@@ -93,6 +93,54 @@ function extract_state(::PatMatFamily, K::KernelMatrix, state::Dict)
     return Dict(:α => αβ[inds_α(K)], :β => αβ[inds_β(K)], :δ => δ)
 end
 
+function isfeasible(f::PatMatFamily{Hinge}, ::KernelMatrix, sol::Dict)
+    α, β, δ = sol[:α], sol[:β], sol[:δ]
+    C = Float32(f.C)
+    ϑ = Float32(f.ϑ)
+
+    flag = true
+    if !(sum(α) ≈ sum(β))
+        @warn "Constraint sum(α) == sum(β) not satisfied"
+        flag = false
+    end
+    if !all(0 .<= α .<= C)
+        @warn "Constraint 0 <= α <= C not satisfied"
+        flag = false
+    end
+    if !all(0 .<= β .<= ϑ * δ)
+        @warn "Constraint 0 <= β <= ϑ * δ not satisfied"
+        flag = false
+    end
+    if δ < 0
+        @warn "Constraint δ >= 0 not satisfied"
+        flag = false
+    end
+    return flag
+end
+
+function isfeasible(::PatMatFamily{Quadratic}, ::KernelMatrix, sol::Dict)
+    α, β, δ = sol[:α], sol[:β], sol[:δ]
+
+    flag = true
+    if !(sum(α) ≈ sum(β))
+        @warn "Constraint sum(α) == sum(β) not satisfied"
+        flag = false
+    end
+    if !all(0 .<= α)
+        @warn "Constraint 0 <= α not satisfied"
+        flag = false
+    end
+    if !all(0 .<= β)
+        @warn "Constraint 0 <= β not satisfied"
+        flag = false
+    end
+    if δ < 0
+        @warn "Constraint σ >= 0 not satisfied"
+        flag = false
+    end
+    return flag
+end
+
 # ------------------------------------------------------------------------------------------
 # Initialization
 # ------------------------------------------------------------------------------------------
