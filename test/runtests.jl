@@ -37,6 +37,6 @@ formulations = (
 # tests
 ε = 1e-7 # tolerance
 
-@testset "batchview" begin
+@testset "Feasibility" begin
     include("feasibility.jl")
 end
