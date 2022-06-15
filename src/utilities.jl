@@ -80,31 +80,3 @@ function update_state!(::AbstractFormulation, K::KernelMatrix, state::Dict, r::U
     end
     return
 end
-
-# test Utils
-function test_eq(x, y, msg="")
-    if x ≈ y
-        return true
-    end
-    msg = isempty(msg) ? "x ≈ y" : msg
-    @warn "Constraint $(msg) not satisfied: $(x) ≈ $(x)"
-    return false
-end
-
-function test_lb(x, x_lb, msg=""; ε::Real = 1e-6)
-    if x_lb - ε <= x
-        return true
-    end
-    msg = isempty(msg) ? "x_lb <= x" : msg
-    @warn "Constraint $(msg) not satisfied: $(x_lb) <=  $(x)"
-    return false
-end
-
-function test_ub(x, x_ub, msg=""; ε::Real = 1e-6)
-    if x <= x_ub + ε
-        return true
-    end
-    msg = isempty(msg) ? "x <= x_ub" : msg
-    @warn "Constraint $(msg) not satisfied: $(x) <=  $(x_ub)"
-    return false
-end

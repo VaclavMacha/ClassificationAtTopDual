@@ -79,32 +79,6 @@ function extract_solution(::PatMatFamily, K::KernelMatrix, state::Dict)
     return Dict(:α => αβ[inds_α(K)], :β => αβ[inds_β(K)], :δ => δ)
 end
 
-function isfeasible(f::PatMatFamily{Hinge}, ::KernelMatrix, sol::Dict)
-    α, β, δ = sol[:α], sol[:β], sol[:δ]
-    C = f.C
-    ϑ = f.ϑ
-
-    return all([
-        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
-        test_lb.(α, 0, "0 <= α")...,
-        test_ub.(α, C, "α <= C")...,
-        test_lb.(β, 0, "0 <= β")...,
-        test_ub.(β, ϑ * δ, "β <= β <= ϑ * δ")...,
-        test_lb(δ, 0, "0 <= δ"),
-    ])
-end
-
-function isfeasible(::PatMatFamily{Quadratic}, ::KernelMatrix, sol::Dict)
-    α, β, δ = sol[:α], sol[:β], sol[:δ]
-
-    return all([
-        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
-        test_lb.(α, 0, "0 <= α")...,
-        test_lb.(β, 0, "0 <= β")...,
-        test_lb(δ, 0, "0 <= δ"),
-    ])
-end
-
 # ------------------------------------------------------------------------------------------
 # Initialization
 # ------------------------------------------------------------------------------------------

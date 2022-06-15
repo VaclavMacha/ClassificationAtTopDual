@@ -86,32 +86,6 @@ function extract_solution(::TopPushKFamily, K::KernelMatrix, state::Dict)
     return Dict(:α => αβ[inds_α(K)], :β => αβ[inds_β(K)])
 end
 
-function isfeasible(f::TopPushKFamily{Hinge}, K::KernelMatrix, sol::Dict)
-    α, β = sol[:α], sol[:β]
-    C = f.C
-    Kf = compute_K(f, K)
-
-    return all([
-        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
-        test_lb.(α, 0, "0 <= α")...,
-        test_ub.(α, C, "α <= C")...,
-        test_lb.(β, 0, "0 <= β")...,
-        test_ub.(β, sum(α) / Kf, "β <= sum(α)/K")...,
-    ])
-end
-
-function isfeasible(f::TopPushKFamily{Quadratic}, K::KernelMatrix, sol::Dict)
-    α, β = sol[:α], sol[:β]
-    Kf = compute_K(f, K)
-
-    return all([
-        test_eq(sum(α), sum(β), "sum(α) == sum(β)"),
-        test_lb.(α, 0, "0 <= α")...,
-        test_lb.(β, 0, "0 <= β")...,
-        test_ub.(β, sum(α) / Kf, "β <= sum(α)/K")...,
-    ])
-end
-
 # ------------------------------------------------------------------------------------------
 # Initialization
 # ------------------------------------------------------------------------------------------
@@ -185,7 +159,7 @@ end
 
 function hfunc(f::TopPushKFamily{Quadratic}, μ, s, α0, β0, K)
     λ = ffunc(f, μ, s, K)
-    return sum(max.(α0 .- λ .+ sum(max.(β0 .+ λ .- μ, 0))/K, 0)) - K*μ
+    return sum(max.(α0 .- λ .+ sum(max.(β0 .+ λ .- μ, 0)) / K, 0)) - K * μ
 end
 
 function initialize(f::TopPushKFamily{Quadratic}, K::KernelMatrix)
