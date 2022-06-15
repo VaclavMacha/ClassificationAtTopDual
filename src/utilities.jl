@@ -65,6 +65,8 @@ function find_βmax(state, βk)
     return βsort[1] != βk ? βsort[1] : βsort[2]
 end
 
+update_state!(::AbstractFormulation, K::KernelMatrix, state::Dict, r) = nothing
+
 function update_state!(::AbstractFormulation, K::KernelMatrix, state::Dict, r::Update)
     iszero(r.Δ) && return
 
