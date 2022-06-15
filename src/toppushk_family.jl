@@ -54,30 +54,19 @@ function threshold(f::TopPushKFamily, K::KernelMatrix, state::Dict)
     return -mean(partialsort(state[:s][inds_β(K)], 1:compute_K(f, K)))
 end
 
-function objective(f::TopPushKFamily{Hinge}, K::KernelMatrix, state::Dict)
+function objective(f::TopPushKFamily{S}, K::KernelMatrix, state::Dict) where {S<:Surrogate}
     s = state[:s]
     αβ = state[:αβ]
     C = Float32(f.C)
 
-    w_norm = s' * αβ / 2
-    t = threshold(f, K, state)
-
-    L_primal = w_norm + C * sum(value.(Hinge, t .- s[inds_α(K)]))
-    L_dual = -w_norm + sum(αβ[inds_α(K)])
-    return L_primal, L_dual, L_primal - L_dual
-end
-
-function objective(f::TopPushKFamily{Quadratic}, K::KernelMatrix, state::Dict)
-    s = state[:s]
-    αβ = state[:αβ]
-    C = Float32(f.C)
-
+    s_pos = s[inds_α(K)]
     α = αβ[inds_α(K)]
+
     w_norm = s' * αβ / 2
     t = threshold(f, K, state)
 
-    L_primal = w_norm + C * sum(value.(Quadratic, t .- s[inds_α(K)]))
-    L_dual = -w_norm + sum(α) - sum(abs2, α) / (4C)
+    L_primal = w_norm + C * sum(value.(S, t .- s_pos))
+    L_dual = -w_norm - C * sum(conjugate.(S, α ./ C))
     return L_primal, L_dual, L_primal - L_dual
 end
 

@@ -42,7 +42,7 @@ function threshold(f::PatMatFamily{S}, K::KernelMatrix, state::Dict) where {S}
     return find_root(foo, (-typemax(Float32), typemax(Float32)))
 end
 
-function objective(f::PatMatFamily{Hinge}, K::KernelMatrix, state::Dict)
+function objective(f::PatMatFamily{S}, K::KernelMatrix, state::Dict) where {S<:Surrogate}
     s = state[:s]
     αβ = state[:αβ]
     δ = state[:δ]
@@ -50,29 +50,15 @@ function objective(f::PatMatFamily{Hinge}, K::KernelMatrix, state::Dict)
     C = Float32(f.C)
     ϑ = Float32(f.ϑ)
 
-    w_norm = s' * αβ / 2
-    t = threshold(f, K, state)
-
-    L_primal = w_norm + C * sum(value.(Hinge, t .- s[inds_α(K)]))
-    L_dual = -w_norm + sum(αβ[inds_α(K)]) + sum(αβ[inds_β(K)]) / ϑ - δ * K.nβ * τ
-    return L_primal, L_dual, L_primal - L_dual
-end
-
-function objective(f::PatMatFamily{Quadratic}, K::KernelMatrix, state::Dict)
-    s = state[:s]
-    αβ = state[:αβ]
-    δ = state[:δ]
-    τ = Float32(f.τ)
-    C = Float32(f.C)
-    ϑ = Float32(f.ϑ)
-
+    s_pos = s[inds_α(K)]
     α = αβ[inds_α(K)]
     β = αβ[inds_β(K)]
+
     w_norm = s' * αβ / 2
     t = threshold(f, K, state)
 
-    L_primal = w_norm + C * sum(value.(Quadratic, t .- s[inds_α(K)]))
-    L_dual = -w_norm + sum(α) - sum(abs2, α) / (4C) + sum(β) / ϑ - sum(abs2, β) / (4 * δ * ϑ^2) - δ * K.nβ * τ
+    L_primal = w_norm + C * sum(value.(S, t .- s_pos))
+    L_dual = -w_norm - C * sum(conjugate.(S, α ./ C)) - δ * sum(conjugate.(S, β ./ (δ*ϑ))) - δ * K.nβ * τ
     return L_primal, L_dual, L_primal - L_dual
 end
 

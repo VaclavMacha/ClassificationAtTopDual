@@ -2,8 +2,11 @@
 struct Hinge <: Surrogate end
 struct Quadratic <: Surrogate end
 
-value(::Type{Hinge}, s) = max(0, 1 + s)
-value(::Type{Quadratic}, s) = (max(0, 1 + s))^2
+value(::Type{Hinge}, s::Real) = max(0, 1 + s)
+conjugate(::Type{Hinge}, s::Real) = 0 <= s <= 1 ? -s : one(s)
+
+value(::Type{Quadratic}, s::Real) = (max(0, 1 + s))^2
+conjugate(::Type{Quadratic}, s::Real) = 0 <= s ? (s^2)/4 - s : one(s)
 
 # root finding
 function find_root(f, lims)
