@@ -8,8 +8,9 @@ function solve(
     checkpoint_every::Int=1,
     p_update::Real=0.9,
     dir::AbstractString=pwd(),
-    ε::Real = 1e-4,
-    verbose::Bool = true,
+    ε::Real=1e-4,
+    verbose::Bool=true,
+    save_checkpoints::Bool=true
 )
 
     reset_timer!(TO)
@@ -26,6 +27,7 @@ function solve(
     p = Progress(; epoch_max, iter_max, verbose)
 
     # Initial state
+    state[:save_checkpoints] = save_checkpoints
     state[:dir] = dir
     state[:p_update] = p_update
     state[:epoch] = 0
@@ -38,7 +40,7 @@ function solve(
     optionals = () -> (
         "L primal" => state[:loss_primal][end],
         "L dual" => state[:loss_dual][end],
-        "L gap" => state[:loss_gap][end],
+        "Scaled gap" => state[:loss_gap][end] / state[:loss_gap][1],
     )
 
     # Training
@@ -60,7 +62,7 @@ function solve(
                 progress!(p, iter, epoch, optionals()...)
 
                 # stop condition
-                terminate(state,ε) && break
+                terminate(state, ε) && break
             end
         end
 
@@ -110,7 +112,6 @@ function checkpoint!(f, K, state)
         end
 
         path = solution_path(state[:dir], state[:epoch])
-        mkpath(dirname(path))
 
         @timeit TO "Saving" begin
             solution = Dict(
@@ -125,10 +126,11 @@ function checkpoint!(f, K, state)
                 :loss_dual => loss_dual,
                 :loss_gap => loss_gap,
             )
-            save_checkpoint(path, solution)
+            if state[:save_checkpoints]
+                mkpath(dirname(path))
+                save_checkpoint(path, solution)
+            end
         end
-
-
     end
     return solution
 end
