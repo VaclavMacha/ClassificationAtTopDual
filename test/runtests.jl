@@ -35,7 +35,7 @@ formulations = (
 )
 
 # tests
-ε = 1e-7 # tolerance
+ε = 1e-6 # tolerance
 
 @testset "Feasibility" begin
     include("feasibility.jl")
