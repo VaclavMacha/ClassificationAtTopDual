@@ -100,7 +100,7 @@ function initialize(::TopPush, K::KernelMatrix)
     )
 end
 
-function ffunc(::TopPushKFamily, μ::Real, s::AbstractVector, K::Integer)
+function ffunc(::TopPushKFamily, μ::Real, z::AbstractVector, K::Integer)
     i, j, d = 2, 1, 1
     λ, λ_old = z[1], 0
     g, g_old = -K * μ, -K * μ
