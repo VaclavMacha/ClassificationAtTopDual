@@ -34,7 +34,7 @@ function permutation(::PatMatNP, y)
 end
 
 function threshold(f::PatMatFamily{S}, K::KernelMatrix, state::Dict) where {S}
-    s = state[:s][inds_β(K)]
+    s = compute_scores(f, K, state)[inds_β(K)]
     τ = Float32(f.τ)
     ϑ = Float32(f.ϑ)
     foo(t) = sum(value.(S, ϑ .* (s .- t))) - K.nβ * τ

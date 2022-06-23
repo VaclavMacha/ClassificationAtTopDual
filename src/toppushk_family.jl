@@ -48,10 +48,14 @@ function permutation(::TopMeanK, y)
     return length(perm_α), length(perm_β), vcat(perm_α, perm_β)
 end
 
-threshold(::TopPush, K::KernelMatrix, state::Dict) = -minimum(state[:s][inds_β(K)])
+function threshold(::TopPush, K::KernelMatrix, state::Dict)
+    s = compute_scores(f, K, state)[inds_β(K)]
+    return maximum(s)
+end
 
 function threshold(f::TopPushKFamily, K::KernelMatrix, state::Dict)
-    return -mean(partialsort(state[:s][inds_β(K)], 1:compute_K(f, K)))
+    s = compute_scores(f, K, state)[inds_β(K)]
+    return mean(partialsort(s, 1:compute_K(f, K); rev = true))
 end
 
 function objective(f::TopPushKFamily{S}, K::KernelMatrix, state::Dict) where {S<:Surrogate}
@@ -98,21 +102,21 @@ end
 
 function ffunc(::TopPushKFamily, μ::Real, s::AbstractVector, K::Integer)
     i, j, d = 2, 1, 1
-    λ, λ_old = s[1], 0
+    λ, λ_old = z[1], 0
     g, g_old = -K * μ, -K * μ
 
     while g < 0
         g_old = g
         λ_old = λ
 
-        if s[i] <= s[j] + μ
-            g += d * (s[i] - λ)
-            λ = s[i]
+        if z[i] <= z[j] + μ
+            g += d * (z[i] - λ)
+            λ = z[i]
             d += 1
             i += 1
         else
-            g += d * (s[j] + μ - λ)
-            λ = s[j] + μ
+            g += d * (z[j] + μ - λ)
+            λ = z[j] + μ
             d -= 1
             j += 1
         end
@@ -135,12 +139,12 @@ function initialize(f::TopPushKFamily{Hinge}, K::KernelMatrix)
     if mean(partialsort(β0, 1:Kf; rev=true)) + maximum(α0) <= 0
         α, β = zero(α0), zero(β0)
     else
-        s = vcat(.-sort(β0; rev=true), Inf)
+        z = vcat(.-sort(β0; rev=true), Inf)
         μ_lb = 1e-10
         μ_ub = length(α0) * C / Kf + 1e-6
 
-        μ = find_root(μ -> hfunc(f, μ, s, α0, β0, C, Kf), (μ_lb, μ_ub))
-        λ = ffunc(f, μ, s, Kf)
+        μ = find_root(μ -> hfunc(f, μ, z, α0, β0, C, Kf), (μ_lb, μ_ub))
+        λ = ffunc(f, μ, z, Kf)
         δ = sum(max.(β0 .+ λ .- μ, 0)) / Kf
 
         α = @. max(min(α0 - λ + δ, C), 0)
