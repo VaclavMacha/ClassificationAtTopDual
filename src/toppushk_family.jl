@@ -48,7 +48,7 @@ function permutation(::TopMeanK, y)
     return length(perm_α), length(perm_β), vcat(perm_α, perm_β)
 end
 
-function threshold(::TopPush, K::KernelMatrix, state::Dict)
+function threshold(f::TopPush, K::KernelMatrix, state::Dict)
     s = compute_scores(f, K, state)[inds_β(K)]
     return maximum(s)
 end
