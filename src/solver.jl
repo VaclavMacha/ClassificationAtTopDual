@@ -54,8 +54,12 @@ function solve(
                 else
                     l
                 end
-                r = select_rule(f, K, state, k)
-                update_state!(f, K, state, r)
+                @timeit TO "rule selection" begin
+                    r = select_rule(f, K, state, k)
+                end
+                @timeit TO "state update" begin
+                    update_state!(f, K, state, r)
+                end
                 Δ, k, l = r.Δ, r.k, r.l
 
                 # progress bar
