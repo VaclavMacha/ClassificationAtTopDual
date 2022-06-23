@@ -147,7 +147,7 @@ function initialize(f::TopPushKFamily{Hinge}, K::KernelMatrix{T}) where {T}
         α, β = zero(α0), zero(β0)
     else
         z = vcat(.-sort(β0; rev=true), T(Inf))
-        μ_lb = T(1.0e-8)
+        μ_lb = T(1.0e-6)
         μ_ub = length(α0) * C / Kf + T(1.0f-6)
 
         μ = find_root(μ -> hfunc(f, μ, z, α0, β0, C, Kf), (μ_lb, μ_ub))
@@ -183,7 +183,7 @@ function initialize(f::TopPushKFamily{Quadratic}, K::KernelMatrix{T}) where {T}
         α, β = zero(α0), zero(β0)
     else
         s = vcat(.-sort(β0; rev=true), T(Inf))
-        μ_lb = T(1e-8)
+        μ_lb = T(1e-6)
         μ_ub = length(α0) * (maximum(α0) + maximum(β0)) / Kf
 
         μ = find_root(μ -> hfunc(f, μ, s, α0, β0, Kf), (μ_lb, μ_ub))
