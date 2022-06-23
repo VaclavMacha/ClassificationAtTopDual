@@ -60,8 +60,7 @@ function select_rule(f::AbstractFormulation, K::KernelMatrix, state::Dict, k::In
 end
 
 # state update
-function find_βmax(state, βk)
-    βsort = state[:βsort]
+function find_βmax(βsort, βk)
     return βsort[1] != βk ? βsort[1] : βsort[2]
 end
 

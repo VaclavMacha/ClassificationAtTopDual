@@ -49,13 +49,18 @@ function permutation(::TopMeanK, y)
 end
 
 function threshold(f::TopPush, K::KernelMatrix, state::Dict)
-    s = compute_scores(f, K, state)[inds_β(K)]
+    s = compute_scores(f, K, state)[vec(K.y) .== 0]
     return maximum(s)
 end
 
 function threshold(f::TopPushKFamily, K::KernelMatrix, state::Dict)
-    s = compute_scores(f, K, state)[inds_β(K)]
-    return mean(partialsort(s, 1:compute_K(f, K); rev = true))
+    s = compute_scores(f, K, state)[vec(K.y).==0]
+    return mean(partialsort(s, 1:compute_K(f, K); rev=true))
+end
+
+function threshold(f::TopMeanK, K::KernelMatrix, state::Dict)
+    s = compute_scores(f, K, state)
+    return mean(partialsort(s, 1:compute_K(f, K); rev=true))
 end
 
 function objective(f::TopPushKFamily{S}, K::KernelMatrix, state::Dict) where {S<:Surrogate}
@@ -97,6 +102,8 @@ function initialize(::TopPush, K::KernelMatrix)
     return Dict{Symbol,Any}(
         :s => zeros(Float32, K.n),
         :αβ => zeros(Float32, K.n),
+        :αsum => zero(Float32),
+        :βsort => zeros(Float32, K.n),
     )
 end
 
@@ -214,11 +221,14 @@ function Update(
     return Update(R; num, den, lb, ub, Δ, L, δ=0, kwargs...)
 end
 
-# Hinge loss
-function Update(::Type{ααRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
+function Update(R::Type{<:RuleType}, f::TopPushKFamily, K::KernelMatrix, state, k, l)
     C = Float32(f.C)
+    return Update(R, f, K, k, l, state[:s], state[:αβ], C, state[:αsum], state[:βsort])
+end
+
+# Hinge loss
+function Update(::Type{ααRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     return Update(ααRule, f; k, l,
         lb=max(-αβ[k], αβ[l] - C),
@@ -228,10 +238,8 @@ function Update(::Type{ααRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix, sta
     )
 end
 
-function Update(::Type{αβRule}, f::TopPush{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    C = Float32(f.C)
+function Update(::Type{αβRule}, f::TopPush{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     return Update(αβRule, f; k, l,
         lb=max(-αβ[k], -αβ[l]),
@@ -241,14 +249,10 @@ function Update(::Type{αβRule}, f::TopPush{Hinge}, K::KernelMatrix, state, k, 
     )
 end
 
-function Update(::Type{αβRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    αsum = state[:αsum]
-    C = Float32(f.C)
-
+function Update(::Type{αβRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
     Kf = compute_K(f, K)
-    βmax = find_βmax(state, αβ[l])
+    βmax = find_βmax(βsort, αβ[l])
 
     return Update(αβRule, f; k, l,
         lb=max(-αβ[k], -αβ[l], Kf * βmax - αsum),
@@ -258,9 +262,8 @@ function Update(::Type{αβRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix, sta
     )
 end
 
-function Update(::Type{ββRule}, f::TopPush{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
+function Update(::Type{ββRule}, f::TopPush{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     return Update(ββRule, f; k, l,
         lb=-αβ[k],
@@ -270,10 +273,8 @@ function Update(::Type{ββRule}, f::TopPush{Hinge}, K::KernelMatrix, state, k, 
     )
 end
 
-function Update(::Type{ββRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    αsum = state[:αsum]
+function Update(::Type{ββRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
     Kf = compute_K(f, K)
 
     return Update(ββRule, f; k, l,
@@ -285,10 +286,8 @@ function Update(::Type{ββRule}, f::TopPushKFamily{Hinge}, K::KernelMatrix, sta
 end
 
 # Quadratic Hinge loss
-function Update(::Type{ααRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    C = Float32(f.C)
+function Update(::Type{ααRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     return Update(ααRule, f; k, l,
         lb=-αβ[k],
@@ -298,10 +297,8 @@ function Update(::Type{ααRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix,
     )
 end
 
-function Update(::Type{αβRule}, f::TopPush{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    C = Float32(f.C)
+function Update(::Type{αβRule}, f::TopPush{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     return Update(αβRule, f; k, l,
         lb=max(-αβ[k], -αβ[l]),
@@ -311,14 +308,11 @@ function Update(::Type{αβRule}, f::TopPush{Quadratic}, K::KernelMatrix, state,
     )
 end
 
-function Update(::Type{αβRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    αsum = state[:αsum]
-    C = Float32(f.C)
+function Update(::Type{αβRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     Kf = compute_K(f, K)
-    βmax = find_βmax(state, αβ[l])
+    βmax = find_βmax(βsort, αβ[l])
 
     return Update(αβRule, f; k, l,
         lb=max(-αβ[k], -αβ[l], Kf * βmax - αsum),
@@ -328,9 +322,8 @@ function Update(::Type{αβRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix,
     )
 end
 
-function Update(::Type{ββRule}, f::TopPush{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
+function Update(::Type{ββRule}, f::TopPush{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
 
     return Update(ββRule, f; k, l,
         lb=-αβ[k],
@@ -340,10 +333,9 @@ function Update(::Type{ββRule}, f::TopPush{Quadratic}, K::KernelMatrix, state,
     )
 end
 
-function Update(::Type{ββRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    αsum = state[:αsum]
+function Update(::Type{ββRule}, f::TopPushKFamily{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, C, αsum, βsort)
+
     Kf = compute_K(f, K)
 
     return Update(ββRule, f; k, l,

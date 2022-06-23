@@ -33,8 +33,17 @@ function permutation(::PatMatNP, y)
     return length(perm_α), length(perm_β), vcat(perm_α, perm_β)
 end
 
-function threshold(f::PatMatFamily{S}, K::KernelMatrix, state::Dict) where {S}
-    s = compute_scores(f, K, state)[inds_β(K)]
+function threshold(f::PatMat{S}, K::KernelMatrix, state::Dict) where {S}
+    s = compute_scores(f, K, state)
+    τ = Float32(f.τ)
+    ϑ = Float32(f.ϑ)
+    foo(t) = sum(value.(S, ϑ .* (s .- t))) - K.nβ * τ
+
+    return find_root(foo, (-typemax(Float32), typemax(Float32)))
+end
+
+function threshold(f::PatMatNP{S}, K::KernelMatrix, state::Dict) where {S}
+    s = compute_scores(f, K, state)[vec(K.y).==0]
     τ = Float32(f.τ)
     ϑ = Float32(f.ϑ)
     foo(t) = sum(value.(S, ϑ .* (s .- t))) - K.nβ * τ
@@ -58,7 +67,7 @@ function objective(f::PatMatFamily{S}, K::KernelMatrix, state::Dict) where {S<:S
     t = threshold(f, K, state)
 
     L_primal = w_norm + C * sum(value.(S, t .- s_pos))
-    L_dual = -w_norm - C * sum(conjugate.(S, α ./ C)) - δ * sum(conjugate.(S, β ./ (δ*ϑ))) - δ * K.nβ * τ
+    L_dual = -w_norm - C * sum(conjugate.(S, α ./ C)) - δ * sum(conjugate.(S, β ./ (δ * ϑ))) - δ * K.nβ * τ
     return L_primal, L_dual, L_primal - L_dual
 end
 
@@ -161,7 +170,8 @@ function Update(
     R::Type{<:RuleType},
     f::PatMatFamily{Hinge},
     K::KernelMatrix,
-    state::Dict;
+    αβ,
+    δ_old;
     num::Real,
     den::Real,
     lb::Real,
@@ -171,7 +181,7 @@ function Update(
 )
     τ = Float32(f.τ)
     Δ = compute_Δ(; lb, ub, num, den)
-    L = -den * Δ^2 / 2 - num * Δ - (δ - state[:δ]) * K.nβ * τ
+    L = -den * Δ^2 / 2 - num * Δ - (δ - δ_old) * K.nβ * τ
     return Update(R; num, den, lb, ub, Δ, L, δ, kwargs...)
 end
 
@@ -179,7 +189,8 @@ function Update(
     R::Type{<:RuleType},
     f::PatMatFamily{Quadratic},
     K::KernelMatrix,
-    state::Dict;
+    αβ,
+    δ_old;
     num::Real,
     den::Real,
     lb::Real,
@@ -192,8 +203,6 @@ function Update(
 
     τ = Float32(f.τ)
     ϑ = Float32(f.ϑ)
-    αβ = state[:αβ]
-    δ_old = state[:δ]
 
     if R <: ααRule
         num_new = num
@@ -211,29 +220,31 @@ function Update(
     return Update(R; num, den, lb, ub, Δ, L, δ, k, l, kwargs...)
 end
 
-# Hinge loss
-function Update(::Type{ααRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    C = Float32(f.C)
-
-    return Update(ααRule, f, K, state; k, l,
-        lb=max(-αβ[k], αβ[l] - C),
-        ub=min(C - αβ[k], αβ[l]),
-        num=s[k] - s[l],
-        den=K[k, k] - 2 * K[k, l] + K[l, l],
-        δ=state[:δ]
-    )
-end
-
-function Update(::Type{αβRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
+function Update(R::Type{<:RuleType}, f::PatMatFamily, K::KernelMatrix, state, k, l)
     τ = Float32(f.τ)
     C = Float32(f.C)
     ϑ = Float32(f.ϑ)
 
-    βmax = find_βmax(state, αβ[l])
+    return Update(R, f, K, k, l, state[:s], state[:αβ], state[:δ], C, τ, ϑ, state[:βsort])
+end
+
+# Hinge loss
+function Update(::Type{ααRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+
+    return Update(ααRule, f, K, αβ, δ; k, l,
+        lb=max(-αβ[k], αβ[l] - C),
+        ub=min(C - αβ[k], αβ[l]),
+        num=s[k] - s[l],
+        den=K[k, k] - 2 * K[k, l] + K[l, l],
+        δ=δ
+    )
+end
+
+function Update(::Type{αβRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+
+    βmax = find_βmax(βsort, αβ[l])
     lb = max(-αβ[k], -αβ[l])
     ub = C - αβ[k]
     kwargs = (; lb, ub, k, l)
@@ -243,7 +254,7 @@ function Update(::Type{αβRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state
     den1 = K[k, k] + 2 * K[k, l] + K[l, l]
     Δ1 = compute_Δ(; lb, ub, num=num1, den=den1)
     if αβ[l] + Δ1 <= βmax
-        r1 = Update(αβRule, f, K, state; num=num1, den=den1, δ=βmax / ϑ, kwargs...)
+        r1 = Update(αβRule, f, K, αβ, δ; num=num1, den=den1, δ=βmax / ϑ, kwargs...)
     else
         r1 = (;)
     end
@@ -253,20 +264,17 @@ function Update(::Type{αβRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state
     den2 = K[k, k] + 2 * K[k, l] + K[l, l]
     Δ2 = compute_Δ(; lb, ub, num=num2, den=den2)
     if αβ[l] + Δ2 >= βmax
-        r2 = Update(αβRule, f, K, state; num=num2, den=den2, δ=(αβ[l] + Δ2) / ϑ, kwargs...)
+        r2 = Update(αβRule, f, K, αβ, δ; num=num2, den=den2, δ=(αβ[l] + Δ2) / ϑ, kwargs...)
     else
         r2 = (;)
     end
     return select_rule(r1, r2)
 end
 
-function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    τ = Float32(f.τ)
-    ϑ = Float32(f.ϑ)
+function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
+                k, l, s, αβ, δ, C, τ, ϑ, βsort)
 
-    βmax = find_βmax(state, αβ[l])
+    βmax = find_βmax(βsort, αβ[l])
     lb = -αβ[k]
     ub = αβ[l]
     kwargs = (; lb, ub, k, l)
@@ -276,7 +284,7 @@ function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state
     den1 = K[k, k] - 2 * K[k, l] + K[l, l]
     Δ1 = compute_Δ(; lb, ub, num=num1, den=den1)
     if max(αβ[k] + Δ1, αβ[l] - Δ1) <= βmax
-        r1 = Update(ββRule, f, K, state; num=num1, den=den1, δ=βmax / ϑ, kwargs...)
+        r1 = Update(ββRule, f, K, αβ, δ; num=num1, den=den1, δ=βmax / ϑ, kwargs...)
     else
         r1 = (;)
     end
@@ -286,7 +294,7 @@ function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state
     den2 = K[k, k] - 2 * K[k, l] + K[l, l]
     Δ2 = compute_Δ(; lb, ub, num=num2, den=den2)
     if αβ[k] + Δ2 >= max(βmax, αβ[l] - Δ2)
-        r2 = Update(ββRule, f, K, state; num=num2, den=den2, δ=(αβ[k] + Δ2) / ϑ, kwargs...)
+        r2 = Update(ββRule, f, K, αβ, δ; num=num2, den=den2, δ=(αβ[k] + Δ2) / ϑ, kwargs...)
     else
         r2 = (;)
     end
@@ -296,7 +304,7 @@ function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state
     den3 = K[k, k] - 2 * K[k, l] + K[l, l]
     Δ3 = compute_Δ(; lb, ub, num=num3, den=den3)
     if αβ[l] - Δ3 >= max(βmax, αβ[k] + Δ3)
-        r3 = Update(ββRule, f, K, state; num=num3, den=den3, δ=(αβ[l] - Δ3) / ϑ, kwargs...)
+        r3 = Update(ββRule, f, K, αβ, δ; num=num3, den=den3, δ=(αβ[l] - Δ3) / ϑ, kwargs...)
     else
         r3 = (;)
     end
@@ -304,27 +312,20 @@ function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix, state
 end
 
 # Quadratic Hinge loss
-function Update(::Type{ααRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    C = Float32(f.C)
+function Update(::Type{ααRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, δ, C, τ, ϑ, βsort)
 
-    return Update(ααRule, f, K, state; k, l,
+    return Update(ααRule, f, K, αβ, δ; k, l,
         lb=-αβ[k],
         ub=αβ[l],
         num=s[k] - s[l] + (αβ[k] - αβ[l]) / (2C),
         den=K[k, k] - 2 * K[k, l] + K[l, l] + 1 / C,
-        δ=state[:δ]
+        δ=δ
     )
 end
 
-function Update(::Type{αβRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    δ = state[:δ]
-    τ = Float32(f.τ)
-    C = Float32(f.C)
-    ϑ = Float32(f.ϑ)
+function Update(::Type{αβRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, δ, C, τ, ϑ, βsort)
 
     lb = max(-αβ[k], -αβ[l])
     ub = Float32(Inf)
@@ -334,15 +335,11 @@ function Update(::Type{αβRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix, s
     Δ = compute_Δ(; num, den, lb, ub)
     δ = sqrt(max(δ^2 + (Δ^2 + 2 * Δ * αβ[l]) / (4 * ϑ^2 * K.nβ * τ), 0))
 
-    return Update(αβRule, f, K, state; lb, ub, num, den, k, l, δ)
+    return Update(αβRule, f, K, αβ, δ; lb, ub, num, den, k, l, δ)
 end
 
-function Update(::Type{ββRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix, state, k, l)
-    s = state[:s]
-    αβ = state[:αβ]
-    δ = state[:δ]
-    τ = Float32(f.τ)
-    ϑ = Float32(f.ϑ)
+function Update(::Type{ββRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
+                k, l, s, αβ, δ, C, τ, ϑ, βsort)
 
     lb = -αβ[k]
     ub = αβ[l]
@@ -352,5 +349,5 @@ function Update(::Type{ββRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix, s
     Δ = compute_Δ(; num, den, lb, ub)
     δ = sqrt(max(δ^2 + (Δ^2 + Δ * (αβ[k] - αβ[l])) / (2 * ϑ^2 * K.nβ * τ), 0))
 
-    return Update(ββRule, f, K, state; lb, ub, num, den, k, l, δ)
+    return Update(ββRule, f, K, αβ, δ; lb, ub, num, den, k, l, δ)
 end
