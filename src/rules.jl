@@ -1,16 +1,16 @@
-struct Update{R<:RuleType}
-    num::Float32
-    den::Float32
-    lb::Float32
-    ub::Float32
+struct Update{R<:RuleType,T<:Real}
+    num::T
+    den::T
+    lb::T
+    ub::T
     k::Int
     l::Int
-    Δ::Float32
-    L::Float32
-    δ::Float32
+    Δ::T
+    L::T
+    δ::T
 
     function Update(R::Type{<:RuleType}; num, den, lb, ub, k, l, Δ, L, δ)
-        return new{R}(num, den, lb, ub, k, l, Δ, L, δ)
+        return new{R, typeof(num)}(num, den, lb, ub, k, l, Δ, L, δ)
     end
 end
 

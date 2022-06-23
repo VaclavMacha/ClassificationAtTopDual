@@ -1,6 +1,6 @@
 struct Linear <: Kernel end
 
-initialize(::Linear, ::Int) = KernelFunctions.LinearKernel(; c=zero(Float32))
+initialize(::Linear, ::Int, T) = KernelFunctions.LinearKernel(; c=zero(T))
 
 struct Gaussian{T<:Real} <: Kernel
     γ::T
@@ -9,8 +9,7 @@ end
 
 Gaussian(; γ::Real=1, scale::Bool=true) = Gaussian(γ, scale)
 
-function initialize(ker::Gaussian, d::Int)
-    T = Float32
+function initialize(ker::Gaussian, d::Int, T)
     γ = ker.scale ? T(ker.γ / d) : T(ker.γ)
     return KernelFunctions.TransformedKernel(
         KernelFunctions.SqExponentialKernel(),
@@ -19,7 +18,7 @@ function initialize(ker::Gaussian, d::Int)
 end
 
 # KernelMatrix
-struct KernelMatrix{M,T<:Real,I}
+struct KernelMatrix{T<:Real, M, I}
     X::Matrix{T}
     y::I
 
@@ -37,7 +36,7 @@ function KernelMatrix(ker::Kernel, f::AbstractFormulation, X::Matrix{T}, y) wher
     nα, nβ, perm = permutation(f, vec(y))
 
     # kernel function
-    kernel = initialize(ker, size(X, 1))
+    kernel = initialize(ker, size(X, 1), T)
 
     # compute kernel matrix
     @timeit TO "KernelMatrix init" begin
@@ -51,7 +50,7 @@ end
 
 Base.show(io::IO, K::KernelMatrix) = print(io, "$(K.n)x$(K.n) kernel matrix")
 Base.size(K::KernelMatrix) = (K.n, K.n)
-Base.eltype(::KernelMatrix{M,T}) where {M,T} = T
+Base.eltype(::KernelMatrix{T}) where {T} = T
 Base.getindex(K::KernelMatrix, args...) = getindex(K.matrix, args...)
 Base.:*(K::KernelMatrix, s::AbstractVector) = K.matrix * s
 

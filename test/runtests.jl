@@ -11,8 +11,8 @@ Random.seed!(1234)
 
 # initialization
 train = (rand(Float32, 50, 20), rand(Bool, 20))
-valid = train
-test = train
+valid = (rand(Float32, 50, 15), rand(Bool, 15))
+test = (rand(Float32, 50, 11), rand(Bool, 11))
 
 kernels = (
     Linear(),

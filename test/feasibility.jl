@@ -1,6 +1,6 @@
-function isfeasible(f::TopPushKFamily{Hinge}, K::KernelMatrix, sol::Dict; ε::Real=1e-6)
+function isfeasible(f::TopPushKFamily{Hinge}, K::KernelMatrix{T}, sol; ε::Real=1e-6) where {T}
     α, β = sol[:α], sol[:β]
-    C = f.C
+    C = T(f.C)
     Kf = compute_K(f, K)
 
     return @testset "constraints" begin
@@ -14,7 +14,7 @@ function isfeasible(f::TopPushKFamily{Hinge}, K::KernelMatrix, sol::Dict; ε::Re
     end
 end
 
-function isfeasible(f::TopPushKFamily{Quadratic}, K::KernelMatrix, sol::Dict; ε::Real=1e-6)
+function isfeasible(f::TopPushKFamily{Quadratic}, K::KernelMatrix, sol; ε::Real=1e-6)
     α, β = sol[:α], sol[:β]
     Kf = compute_K(f, K)
 
@@ -35,10 +35,10 @@ function isfeasible(f::TopPushKFamily{Quadratic}, K::KernelMatrix, sol::Dict; ε
     ])
 end
 
-function isfeasible(f::PatMatFamily{Hinge}, ::KernelMatrix, sol::Dict; ε::Real=1e-6)
+function isfeasible(f::PatMatFamily{Hinge}, ::KernelMatrix{T}, sol; ε::Real=1e-6) where {T}
     α, β, δ = sol[:α], sol[:β], sol[:δ]
-    C = f.C
-    ϑ = f.ϑ
+    C = T(f.C)
+    ϑ = T(f.ϑ)
 
     return @testset "constraints" begin
         @test sum(α) ≈ sum(β)
@@ -52,7 +52,7 @@ function isfeasible(f::PatMatFamily{Hinge}, ::KernelMatrix, sol::Dict; ε::Real=
     end
 end
 
-function isfeasible(::PatMatFamily{Quadratic}, ::KernelMatrix, sol::Dict; ε::Real=1e-6)
+function isfeasible(::PatMatFamily{Quadratic}, ::KernelMatrix, sol; ε::Real=1e-6)
     α, β, δ = sol[:α], sol[:β], sol[:δ]
 
     return @testset "constraints" begin

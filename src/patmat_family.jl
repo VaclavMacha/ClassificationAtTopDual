@@ -33,31 +33,31 @@ function permutation(::PatMatNP, y)
     return length(perm_α), length(perm_β), vcat(perm_α, perm_β)
 end
 
-function threshold(f::PatMat{S}, K::KernelMatrix, state::Dict) where {S}
+function threshold(f::PatMat{S}, K::KernelMatrix{T}, state::Dict) where {S,T}
     s = compute_scores(f, K, state)
-    τ = Float32(f.τ)
-    ϑ = Float32(f.ϑ)
+    τ = T(f.τ)
+    ϑ = T(f.ϑ)
     foo(t) = sum(value.(S, ϑ .* (s .- t))) - K.nβ * τ
 
-    return find_root(foo, (-typemax(Float32), typemax(Float32)))
+    return find_root(foo, (-typemax(T), typemax(T)))
 end
 
-function threshold(f::PatMatNP{S}, K::KernelMatrix, state::Dict) where {S}
+function threshold(f::PatMatNP{S}, K::KernelMatrix{T}, state::Dict) where {S, T}
     s = compute_scores(f, K, state)[vec(K.y).==0]
-    τ = Float32(f.τ)
-    ϑ = Float32(f.ϑ)
+    τ = T(f.τ)
+    ϑ = T(f.ϑ)
     foo(t) = sum(value.(S, ϑ .* (s .- t))) - K.nβ * τ
 
-    return find_root(foo, (-typemax(Float32), typemax(Float32)))
+    return find_root(foo, (-typemax(T), typemax(T)))
 end
 
-function objective(f::PatMatFamily{S}, K::KernelMatrix, state::Dict) where {S<:Surrogate}
+function objective(f::PatMatFamily{S}, K::KernelMatrix{T}, state::Dict) where {S, T}
     s = state[:s]
     αβ = state[:αβ]
     δ = state[:δ]
-    τ = Float32(f.τ)
-    C = Float32(f.C)
-    ϑ = Float32(f.ϑ)
+    τ = T(f.τ)
+    C = T(f.C)
+    ϑ = T(f.ϑ)
 
     s_pos = s[inds_α(K)]
     α = αβ[inds_α(K)]
@@ -100,20 +100,20 @@ function hfunc(f::PatMatFamily{Hinge}, μ, α0, β0, δ0, C1, C2)
     return sum(min.(max.(α0 .- λ, 0), C1)) - sum(min.(max.(β0 .+ λ, 0), λ + μ))
 end
 
-function initialize(f::PatMatFamily{Hinge}, K::KernelMatrix)
-    α0 = rand(Float32, K.nα)
-    β0 = rand(Float32, K.nβ)
+function initialize(f::PatMatFamily{Hinge}, K::KernelMatrix{T}) where {T}
+    α0 = rand(T, K.nα)
+    β0 = rand(T, K.nβ)
     δ0 = maximum(β0)
-    C1 = Float32(f.C)
-    C2 = Float32(f.ϑ)
+    C1 = T(f.C)
+    C2 = T(f.ϑ)
 
     if δ0 <= -C2 * sum(max.(β0 .+ maximum(α0), 0))
         α, β, δ = zero(α0), zero(β0), zero(δ0)
     else
         μ_ub1 = minimum(β0)
         μ_ub2 = minimum(C2 * δ0 + C2^2 * sum(β0) .- α0) / (C2^2 * length(β0) + 1)
-        μ_ub = min(μ_ub1, μ_ub2) - 1e8
-        μ_lb = maximum(β0) + C2 * max(δ0, 0) + 1e8
+        μ_ub = min(μ_ub1, μ_ub2) - T(1e8)
+        μ_lb = maximum(β0) + C2 * max(δ0, 0) + T(1e8)
 
         μ = find_root(μ -> hfunc(f, μ, α0, β0, δ0, C1, C2), (μ_lb, μ_ub))
         λ = ffunc(f, μ, α0, β0, δ0, C1, C2)
@@ -137,11 +137,11 @@ function ffunc(::PatMatFamily{Quadratic}, λ, α0, β0, δ0)
     return sum(max.(α0 .- λ, 0)) - sum(max.(β0 .+ λ, 0))
 end
 
-function initialize(f::PatMatFamily{Quadratic}, K::KernelMatrix)
-    α0 = rand(Float32, K.nα)
-    β0 = rand(Float32, K.nβ)
-    τ = Float32(f.τ)
-    ϑ = Float32(f.ϑ)
+function initialize(f::PatMatFamily{Quadratic}, K::KernelMatrix{T}) where {T}
+    α0 = rand(T, K.nα)
+    β0 = rand(T, K.nβ)
+    τ = T(f.τ)
+    ϑ = T(f.ϑ)
     δ0 = sqrt(max(sum(abs2, β0) / (4 * K.nβ * τ * ϑ^2), 0))
 
     if -maximum(β0) > maximum(α0)
@@ -150,7 +150,7 @@ function initialize(f::PatMatFamily{Quadratic}, K::KernelMatrix)
         λ = find_root(λ -> ffunc(f, λ, α0, β0, δ0), (-maximum(β0), maximum(α0)))
         α = @. max(α0 - λ, 0)
         β = @. max(β0 + λ, 0)
-        δ = max(δ0, 1e-4)
+        δ = max(δ0, T(1e-4))
     end
 
     # retun state
@@ -169,17 +169,18 @@ end
 function Update(
     R::Type{<:RuleType},
     f::PatMatFamily{Hinge},
-    K::KernelMatrix,
-    αβ,
-    δ_old;
-    num::Real,
-    den::Real,
-    lb::Real,
-    ub::Real,
-    δ::Real,
+    K::KernelMatrix{T},
+    αβ::Vector{T},
+    δ_old::T;
+    num::T,
+    den::T,
+    lb::T,
+    ub::T,
+    δ::T,
     kwargs...
-)
-    τ = Float32(f.τ)
+) where {T<:Real}
+
+    τ = T(f.τ)
     Δ = compute_Δ(; lb, ub, num, den)
     L = -den * Δ^2 / 2 - num * Δ - (δ - δ_old) * K.nβ * τ
     return Update(R; num, den, lb, ub, Δ, L, δ, kwargs...)
@@ -188,21 +189,21 @@ end
 function Update(
     R::Type{<:RuleType},
     f::PatMatFamily{Quadratic},
-    K::KernelMatrix,
-    αβ,
-    δ_old;
-    num::Real,
-    den::Real,
-    lb::Real,
-    ub::Real,
-    δ::Real,
+    K::KernelMatrix{T},
+    αβ::Vector{T},
+    δ_old::T;
+    num::T,
+    den::T,
+    lb::T,
+    ub::T,
+    δ::T,
     k::Int,
     l::Int,
     kwargs...
-)
+) where {T<:Real}
 
-    τ = Float32(f.τ)
-    ϑ = Float32(f.ϑ)
+    τ = T(f.τ)
+    ϑ = T(f.ϑ)
 
     if R <: ααRule
         num_new = num
@@ -220,17 +221,36 @@ function Update(
     return Update(R; num, den, lb, ub, Δ, L, δ, k, l, kwargs...)
 end
 
-function Update(R::Type{<:RuleType}, f::PatMatFamily, K::KernelMatrix, state, k, l)
-    τ = Float32(f.τ)
-    C = Float32(f.C)
-    ϑ = Float32(f.ϑ)
+function Update(
+    R::Type{<:RuleType},
+    f::PatMatFamily,
+    K::KernelMatrix{T},
+    state::Dict{Symbol, Any},
+    k::Int,
+    l::Int
+) where {T<:Real}
 
+    τ = T(f.τ)
+    C = T(f.C)
+    ϑ = T(f.ϑ)
     return Update(R, f, K, k, l, state[:s], state[:αβ], state[:δ], C, τ, ϑ, state[:βsort])
 end
 
 # Hinge loss
-function Update(::Type{ααRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
-                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+function Update(
+    ::Type{ααRule},
+    f::PatMatFamily{Hinge},
+    K::KernelMatrix{T},
+    k::Int,
+    l::Int,
+    s::Vector{T},
+    αβ::Vector{T},
+    δ::T,
+    C::T,
+    τ::T,
+    ϑ::T,
+    βsort::Vector{T}
+) where {T<:Real}
 
     return Update(ααRule, f, K, αβ, δ; k, l,
         lb=max(-αβ[k], αβ[l] - C),
@@ -241,8 +261,18 @@ function Update(::Type{ααRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
     )
 end
 
-function Update(::Type{αβRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
-                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+function Update(::Type{αβRule}, f::PatMatFamily{Hinge},
+    K::KernelMatrix{T},
+    k::Int,
+    l::Int,
+    s::Vector{T},
+    αβ::Vector{T},
+    δ::T,
+    C::T,
+    τ::T,
+    ϑ::T,
+    βsort::Vector{T}
+) where {T<:Real}
 
     βmax = find_βmax(βsort, αβ[l])
     lb = max(-αβ[k], -αβ[l])
@@ -271,8 +301,18 @@ function Update(::Type{αβRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
     return select_rule(r1, r2)
 end
 
-function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
-                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+function Update(::Type{ββRule}, f::PatMatFamily{Hinge},
+    K::KernelMatrix{T},
+    k::Int,
+    l::Int,
+    s::Vector{T},
+    αβ::Vector{T},
+    δ::T,
+    C::T,
+    τ::T,
+    ϑ::T,
+    βsort::Vector{T}
+) where {T<:Real}
 
     βmax = find_βmax(βsort, αβ[l])
     lb = -αβ[k]
@@ -312,8 +352,18 @@ function Update(::Type{ββRule}, f::PatMatFamily{Hinge}, K::KernelMatrix,
 end
 
 # Quadratic Hinge loss
-function Update(::Type{ααRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
-                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+function Update(::Type{ααRule}, f::PatMatFamily{Quadratic},
+    K::KernelMatrix{T},
+    k::Int,
+    l::Int,
+    s::Vector{T},
+    αβ::Vector{T},
+    δ::T,
+    C::T,
+    τ::T,
+    ϑ::T,
+    βsort::Vector{T}
+) where {T<:Real}
 
     return Update(ααRule, f, K, αβ, δ; k, l,
         lb=-αβ[k],
@@ -324,11 +374,21 @@ function Update(::Type{ααRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
     )
 end
 
-function Update(::Type{αβRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
-                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+function Update(::Type{αβRule}, f::PatMatFamily{Quadratic},
+    K::KernelMatrix{T},
+    k::Int,
+    l::Int,
+    s::Vector{T},
+    αβ::Vector{T},
+    δ::T,
+    C::T,
+    τ::T,
+    ϑ::T,
+    βsort::Vector{T}
+) where {T<:Real}
 
     lb = max(-αβ[k], -αβ[l])
-    ub = Float32(Inf)
+    ub = T(Inf)
     num = s[k] + s[l] - 1 + αβ[k] / (2C) - 1 / ϑ + αβ[l] / (2 * δ * ϑ^2)
     den = K[k, k] + 2 * K[k, l] + K[l, l] + 1 / (2C) + 1 / (2 * δ * ϑ^2)
 
@@ -338,8 +398,18 @@ function Update(::Type{αβRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
     return Update(αβRule, f, K, αβ, δ; lb, ub, num, den, k, l, δ)
 end
 
-function Update(::Type{ββRule}, f::PatMatFamily{Quadratic}, K::KernelMatrix,
-                k, l, s, αβ, δ, C, τ, ϑ, βsort)
+function Update(::Type{ββRule}, f::PatMatFamily{Quadratic},
+    K::KernelMatrix{T},
+    k::Int,
+    l::Int,
+    s::Vector{T},
+    αβ::Vector{T},
+    δ::T,
+    C::T,
+    τ::T,
+    ϑ::T,
+    βsort::Vector{T}
+) where {T<:Real}
 
     lb = -αβ[k]
     ub = αβ[l]

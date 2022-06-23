@@ -21,7 +21,7 @@ function solve(
     iter_max = size(train[1], 2) ÷ 2
     k = 0
     l = 0
-    Δ = zero(Float32)
+    Δ = zero(eltype(K))
 
     # Progress logging
     p = Progress(; epoch_max, iter_max, verbose)
@@ -91,7 +91,7 @@ function terminate(state::Dict, ε::Real)
     return isnan(g) || isinf(g) || g / g0 <= ε
 end
 
-function checkpoint!(f, K, state)
+function checkpoint!(f, K::KernelMatrix{T}, state) where {T}
     @timeit TO "Evaluation" begin
         @timeit TO "Train scores" begin
             y_train = state[:train][2]
@@ -104,9 +104,9 @@ function checkpoint!(f, K, state)
             y_test, s_test = eval_model(f, state, state[:train], state[:test])
         end
 
-        loss_primal = get!(state, :loss_primal, Float32[])
-        loss_dual = get!(state, :loss_dual, Float32[])
-        loss_gap = get!(state, :loss_gap, Float32[])
+        loss_primal = get!(state, :loss_primal, T[])
+        loss_dual = get!(state, :loss_dual, T[])
+        loss_gap = get!(state, :loss_gap, T[])
 
         @timeit TO "Loss" begin
             Lp, Ld, gap = objective(f, K, state)
@@ -143,15 +143,16 @@ function eval_model(f::AbstractFormulation, state::Dict, train, test; chunksize=
     # unpack data
     X, y = train
     Xt, yt = test
+    T = eltype(X)
 
     # init kernel ans dual vars
     αβ = copy(state[:αβ])
     nα, ~, perm = permutation(f, vec(y))
     αβ[(nα+1):end] .*= -1
-    kernel = initialize(state[:ker], size(X, 1))
+    kernel = initialize(state[:ker], size(X, 1), T)
 
     # compute scores
-    s = zeros(Float32, size(Xt, 2))
+    s = zeros(T, size(Xt, 2))
     for cols in partition(1:size(Xt, 2), chunksize)
         K = kernelmatrix(kernel, X[:, perm], Xt[:, cols]; obsdim=2)
         s[cols] .= vec(αβ' * K)
