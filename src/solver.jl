@@ -7,6 +7,7 @@ function solve(
     epoch_max::Int=10,
     checkpoint_every::Int=1,
     p_update::Real=0.9,
+    loss_every::Int=100,
     dir::AbstractString=pwd(),
     ε::Real=1e-4,
     verbose::Bool=true,
@@ -35,6 +36,11 @@ function solve(
     state[:train] = train
     state[:valid] = valid
     state[:test] = test
+
+    Lp, Ld, gap = objective(f, K, state)
+    state[:loss_primal] = [Lp]
+    state[:loss_dual] = [Ld]
+    state[:loss_gap] = [gap]
     solution = checkpoint!(f, K, state)
 
     optionals = () -> (
@@ -45,10 +51,12 @@ function solve(
 
     # Training
     start!(p, optionals()...)
+    counter = 0
     for epoch in 1:epoch_max
         state[:epoch] += 1
         @timeit TO "Epoch" begin
             for iter in 1:iter_max
+                counter += 1
                 k = if Δ == 0 || rand() > p_update
                     rand(1:K.n)
                 else
@@ -66,6 +74,15 @@ function solve(
                 progress!(p, iter, epoch, optionals()...)
 
                 # stop condition
+                @timeit TO "Loss" begin
+                    if counter == loss_every
+                        counter = 0
+                        Lp, Ld, gap = objective(f, K, state)
+                        append!(state[:loss_primal], Lp)
+                        append!(state[:loss_dual], Ld)
+                        append!(state[:loss_gap], gap)
+                    end
+                end
                 terminate(state, ε) && break
             end
         end
@@ -104,17 +121,6 @@ function checkpoint!(f, K::KernelMatrix{T}, state) where {T}
             y_test, s_test = eval_model(f, state, state[:train], state[:test])
         end
 
-        loss_primal = get!(state, :loss_primal, T[])
-        loss_dual = get!(state, :loss_dual, T[])
-        loss_gap = get!(state, :loss_gap, T[])
-
-        @timeit TO "Loss" begin
-            Lp, Ld, gap = objective(f, K, state)
-            append!(loss_primal, Lp)
-            append!(loss_dual, Ld)
-            append!(loss_gap, gap)
-        end
-
         path = solution_path(state[:dir], state[:epoch])
 
         @timeit TO "Saving" begin
@@ -126,9 +132,9 @@ function checkpoint!(f, K::KernelMatrix{T}, state) where {T}
                 :train => Dict(:y => y_train, :s => s_train),
                 :valid => Dict(:y => y_valid, :s => s_valid),
                 :test => Dict(:y => y_test, :s => s_test),
-                :loss_primal => loss_primal,
-                :loss_dual => loss_dual,
-                :loss_gap => loss_gap,
+                :loss_primal => state[:loss_primal],
+                :loss_dual => state[:loss_dual],
+                :loss_gap => state[:loss_gap],
             )
             if state[:save_checkpoints]
                 mkpath(dirname(path))
