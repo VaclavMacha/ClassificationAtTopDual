@@ -40,7 +40,7 @@ function solve(
     @timeit TO "training" begin
         model = LIBSVM.svmtrain(
             Ktrain,
-            Int.(train[2]);
+            Int.(vec(train[2]));
             probability=true,
             cost=Float64(f.C),
             kernel=LIBSVM.Kernel.Precomputed,
