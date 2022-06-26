@@ -29,6 +29,7 @@ export Hinge, Quadratic
 
 export PatMat, PatMatNP
 export TopPush, TopPushK, TopMeanK, tauFPL
+export SVM
 
 # constants
 const TO = TimerOutput()
@@ -54,5 +55,6 @@ include("utilities.jl")
 include("toppushk_family.jl")
 include("patmat_family.jl")
 include("solver.jl")
+include("svm.jl")
 
 end # module
