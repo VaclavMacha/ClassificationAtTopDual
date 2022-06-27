@@ -17,7 +17,17 @@ function solve(
     reset_timer!(TO)
 
     # Initialization
-    K = KernelMatrix(ker, f, train...)
+    @timeit TO "kernel matrix" begin
+        @timeit TO "train" begin
+            kernel, K = KernelMatrix(ker, f, train...)
+        end
+        @timeit TO "valid" begin
+            Kvalid = kernelmatrix(kernel, train[1][:, K.perm], valid[1]; obsdim=2)
+        end
+        @timeit TO "test" begin
+            Ktest = kernelmatrix(kernel, train[1][:, K.perm], test[1]; obsdim=2)
+        end
+    end
     state = initialize(f, K)
     iter_max = size(train[1], 2) ÷ 2
     k = 0
@@ -35,7 +45,10 @@ function solve(
     state[:ker] = ker
     state[:train] = train
     state[:valid] = valid
+    state[:Kvalid] = Kvalid
     state[:test] = test
+    state[:Ktest] = Ktest
+    state[:βinds] = inds_β(K)
 
     Lp, Ld, gap = objective(f, K, state)
     state[:loss_primal] = [Lp]
@@ -115,10 +128,12 @@ function checkpoint!(f, K::KernelMatrix{T}, state) where {T}
             s_train = compute_scores(f, K, state)
         end
         @timeit TO "Valid scores" begin
-            y_valid, s_valid = eval_model(f, state, state[:train], state[:valid])
+            y_valid = state[:valid][2]
+            s_valid = predict(f, state, state[:Kvalid])
         end
         @timeit TO "Test scores" begin
-            y_test, s_test = eval_model(f, state, state[:train], state[:test])
+            y_test = state[:test][2]
+            s_test = predict(f, state, state[:Ktest])
         end
 
         path = solution_path(state[:dir], state[:epoch])
@@ -145,23 +160,9 @@ function checkpoint!(f, K::KernelMatrix{T}, state) where {T}
     return solution
 end
 
-function eval_model(f::AbstractFormulation, state::Dict, train, test; chunksize=10000)
-    # unpack data
-    X, y = train
-    Xt, yt = test
-    T = eltype(X)
-
-    # init kernel ans dual vars
+function predict(::AbstractFormulation, state::Dict, K)
     αβ = copy(state[:αβ])
-    nα, ~, perm = permutation(f, vec(y))
-    αβ[(nα+1):end] .*= -1
-    kernel = initialize(state[:ker], size(X, 1), T)
+    αβ[state[:βinds]] .*= -1
 
-    # compute scores
-    s = zeros(T, size(Xt, 2))
-    for cols in partition(1:size(Xt, 2), chunksize)
-        K = kernelmatrix(kernel, X[:, perm], Xt[:, cols]; obsdim=2)
-        s[cols] .= vec(αβ' * K)
-    end
-    return yt, s
+    return vec(αβ' * K)
 end

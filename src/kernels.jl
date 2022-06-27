@@ -39,13 +39,24 @@ function KernelMatrix(ker::Kernel, f::AbstractFormulation, X::Matrix{T}, y) wher
     kernel = initialize(ker, size(X, 1), T)
 
     # compute kernel matrix
+    matrix = kernelmatrix(kernel, X[:, perm]; obsdim=2)
+    matrix[1:nα, (nα+1):end] .*= -1
+    matrix[(nα+1):end, 1:nα] .*= -1
+    return kernel, KernelMatrix(X, y, nα + nβ, nα, nβ, perm, matrix)
+end
+
+function KernelMatrix(ker::Kernel, f::AbstractFormulation, X::Matrix{T}, y, Xtest) where {T}
+    nα, nβ, perm = permutation(f, vec(y))
+
+    # kernel function
+    kernel = initialize(ker, size(X, 1), T)
+
+    # compute kernel matrix
     @timeit TO "KernelMatrix init" begin
-        matrix = kernelmatrix(kernel, X[:, perm]; obsdim=2)
-        matrix[1:nα, (nα+1):end] .*= -1
-        matrix[(nα+1):end, 1:nα] .*= -1
+        matrix = kernelmatrix(kernel, X[:, perm], Xtest; obsdim=2)
     end
 
-    return KernelMatrix(X, y, nα + nβ, nα, nβ, perm, matrix)
+    return matrix
 end
 
 Base.show(io::IO, K::KernelMatrix) = print(io, "$(K.n)x$(K.n) kernel matrix")
