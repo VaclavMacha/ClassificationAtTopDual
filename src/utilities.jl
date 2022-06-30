@@ -11,9 +11,9 @@ conjugate(::Type{Quadratic}, s::Real) = 0 <= s ? (s^2)/4 - s : one(s)
 # root finding
 function find_root(f, lims)
     try
-        Roots.find_zero(f, lims)
+        Roots.find_zero(f, sum(lims) / 2)
     catch
-        Roots.fzero(f, sum(lims) / 2)
+        Roots.find_zero(f, lims)
     end
 end
 
