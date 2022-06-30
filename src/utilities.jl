@@ -10,10 +10,18 @@ conjugate(::Type{Quadratic}, s::Real) = 0 <= s ? (s^2)/4 - s : one(s)
 
 # root finding
 function find_root(f, lims)
+    isapprox(f(lims[1]), 0) && return lims[1]
+    isapprox(f(lims[2]), 0) && return lims[2]
+
     try
         Roots.find_zero(f, sum(lims) / 2)
     catch
-        Roots.find_zero(f, lims)
+        try
+            Roots.find_zero(f, lims)
+        catch
+            T = eltype(lims)
+            Roots.find_zero(f, T.((-Inf, Inf)))
+        end
     end
 end
 
