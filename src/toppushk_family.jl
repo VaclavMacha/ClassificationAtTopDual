@@ -137,25 +137,26 @@ function hfunc(f::TopPushKFamily{Hinge}, μ, s, α0, β0, C, K)
 end
 
 function initialize(f::TopPushKFamily{Hinge}, K::KernelMatrix{T}) where {T}
-    α0 = rand(T, K.nα)
-    β0 = rand(T, K.nβ)
-    C = T(f.C)
+    TT = Float64
+    α0 = rand(TT, K.nα)
+    β0 = rand(TT, K.nβ)
+    C = TT(f.C)
     Kf = compute_K(f, K)
 
     # find feasible solution
     if mean(partialsort(β0, 1:Kf; rev=true)) + maximum(α0) <= 0
         α, β = zero(α0), zero(β0)
     else
-        z = vcat(.-sort(β0; rev=true), T(Inf))
-        μ_lb = T(1.0e-6)
-        μ_ub = length(α0) * C / Kf + T(1.0f-6)
+        z = vcat(.-sort(β0; rev=true), TT(Inf))
+        μ_lb = TT(1.0e-6)
+        μ_ub = length(α0) * C / Kf + TT(1.0f-6)
 
         μ = find_root(μ -> hfunc(f, μ, z, α0, β0, C, Kf), (μ_lb, μ_ub))
         λ = ffunc(f, μ, z, Kf)
         δ = sum(max.(β0 .+ λ .- μ, 0)) / Kf
 
-        α = @. max(min(α0 - λ + δ, C), 0)
-        β = @. max(min(β0 + λ, μ), 0)
+        α = @. T(max(min(α0 - λ + δ, C), 0))
+        β = @. T(max(min(β0 + λ, μ), 0))
     end
 
     # retun state
@@ -174,8 +175,9 @@ function hfunc(f::TopPushKFamily{Quadratic}, μ, s, α0, β0, K)
 end
 
 function initialize(f::TopPushKFamily{Quadratic}, K::KernelMatrix{T}) where {T}
-    α0 = rand(T, K.nα)
-    β0 = rand(T, K.nβ)
+    TT = Float64
+    α0 = rand(TT, K.nα)
+    β0 = rand(TT, K.nβ)
     Kf = compute_K(f, K)
 
     # find feasible solution
@@ -183,15 +185,15 @@ function initialize(f::TopPushKFamily{Quadratic}, K::KernelMatrix{T}) where {T}
         α, β = zero(α0), zero(β0)
     else
         s = vcat(.-sort(β0; rev=true), T(Inf))
-        μ_lb = T(1e-6)
+        μ_lb = TT(1e-6)
         μ_ub = length(α0) * (maximum(α0) + maximum(β0)) / Kf
 
         μ = find_root(μ -> hfunc(f, μ, s, α0, β0, Kf), (μ_lb, μ_ub))
         λ = ffunc(f, μ, s, Kf)
         δ = sum(max.(β0 .+ λ .- μ, 0)) / Kf
 
-        α = @. max(α0 - λ + δ, 0)
-        β = @. max(min(β0 + λ, μ), 0)
+        α = @. T(max(α0 - λ + δ, 0))
+        β = @. T(max(min(β0 + λ, μ), 0))
     end
 
     # retun state

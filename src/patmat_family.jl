@@ -101,26 +101,27 @@ function hfunc(f::PatMatFamily{Hinge}, μ, α0, β0, δ0, C1, C2)
 end
 
 function initialize(f::PatMatFamily{Hinge}, K::KernelMatrix{T}) where {T}
-    α0 = rand(T, K.nα)
-    β0 = rand(T, K.nβ)
+    TT = Float64
+    α0 = rand(TT, K.nα)
+    β0 = rand(TT, K.nβ)
     δ0 = maximum(β0)
-    C1 = T(f.C)
-    C2 = T(f.ϑ)
+    C1 = TT(f.C)
+    C2 = TT(f.ϑ)
 
     if δ0 <= -C2 * sum(max.(β0 .+ maximum(α0), 0))
         α, β, δ = zero(α0), zero(β0), zero(δ0)
     else
         μ_ub1 = minimum(β0)
         μ_ub2 = minimum(C2 * δ0 + C2^2 * sum(β0) .- α0) / (C2^2 * length(β0) + 1)
-        μ_ub = min(μ_ub1, μ_ub2) - T(1e8)
-        μ_lb = maximum(β0) + C2 * max(δ0, 0) + T(1e8)
+        μ_ub = min(μ_ub1, μ_ub2) - TT(1e8)
+        μ_lb = maximum(β0) + C2 * max(δ0, 0) + TT(1e8)
 
         μ = find_root(μ -> hfunc(f, μ, α0, β0, δ0, C1, C2), (μ_lb, μ_ub))
         λ = ffunc(f, μ, α0, β0, δ0, C1, C2)
 
-        α = @. min(max(α0 - λ, 0), C1)
-        β = @. min(max(β0 + λ, 0), λ + μ)
-        δ = (λ + μ) / C2
+        α = @. T(min(max(α0 - λ, 0), C1))
+        β = @. T(min(max(β0 + λ, 0), λ + μ))
+        δ = T((λ + μ) / C2)
     end
 
     # retun state
@@ -138,19 +139,20 @@ function ffunc(::PatMatFamily{Quadratic}, λ, α0, β0, δ0)
 end
 
 function initialize(f::PatMatFamily{Quadratic}, K::KernelMatrix{T}) where {T}
-    α0 = rand(T, K.nα)
-    β0 = rand(T, K.nβ)
-    τ = T(f.τ)
-    ϑ = T(f.ϑ)
+    TT = Float64
+    α0 = rand(TT, K.nα)
+    β0 = rand(TT, K.nβ)
+    τ = TT(f.τ)
+    ϑ = TT(f.ϑ)
     δ0 = sqrt(max(sum(abs2, β0) / (4 * K.nβ * τ * ϑ^2), 0))
 
     if -maximum(β0) > maximum(α0)
         α, β, δ = zero(α0), zero(β0), zero(δ0)
     else
         λ = find_root(λ -> ffunc(f, λ, α0, β0, δ0), (-maximum(β0), maximum(α0)))
-        α = @. max(α0 - λ, 0)
-        β = @. max(β0 + λ, 0)
-        δ = max(δ0, T(1e-4))
+        α = @. T(max(α0 - λ, 0))
+        β = @. T(max(β0 + λ, 0))
+        δ = T(max(δ0, TT(1e-4)))
     end
 
     # retun state
